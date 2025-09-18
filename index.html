@@ -1,0 +1,30 @@
+<!doctype html><html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kiểm kê 3 vị trí</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KiemKe">
+<link rel="stylesheet" href="style.css"></head><body>
+<header class="safe-top"><h1>Kiểm kê 3 vị trí</h1>
+<div class="btnrow"><label class="btn">📥 Nạp danh mục (.csv)<input type="file" id="masterFile" accept=".csv,text/csv" hidden></label>
+<button id="downloadMaster" class="btn">⬇️ Mẫu danh mục</button>
+<button id="exportBtn" class="btn">📤 Xuất kết quả (.csv)</button>
+<button id="clearBtn" class="btn danger">🧹 Xóa dữ liệu</button></div></header>
+<main><section class="card"><h2>Quét/nhập mã vạch</h2>
+<div class="scanner-row"><input id="barcodeInput" inputmode="numeric" placeholder="Nhập/Quét mã vạch..."><button id="scanBtn" class="btn">📷 Quét</button></div>
+<p class="note"><b>Lưu ý iPhone:</b> nếu quét không hỗ trợ, hãy dùng đầu đọc barcode Bluetooth hoặc nhập tay.</p>
+<div id="videoWrap" class="video-wrap hidden"><video id="video" playsinline></video><button id="stopScan" class="btn danger">Dừng quét</button></div>
+<div class="info"><div><b>Tên SP:</b> <span id="productName">—</span></div><div><b>Mã hàng:</b> <span id="sku">—</span></div></div>
+<div class="qty-grid"><label>Tủ lạnh<br><input id="qtyFridge" type="number" min="0" value="0"></label>
+<label>Trên kệ<br><input id="qtyShelf" type="number" min="0" value="0"></label>
+<label>Trong kho<br><input id="qtyStock" type="number" min="0" value="0"></label>
+<button id="addBtn" class="btn primary">➕ Thêm dòng</button></div></section>
+<section class="card"><h2>Kết quả kiểm kê</h2>
+<table id="resultTable"><thead><tr><th>Thời gian</th><th>Mã vạch</th><th>Tên sản phẩm</th><th>Tủ lạnh</th><th>Trên kệ</th><th>Trong kho</th><th>TỔNG</th><th></th></tr></thead><tbody></tbody></table></section>
+<section class="card"><h2>Tổng hợp theo sản phẩm</h2>
+<table id="sumTable"><thead><tr><th>Tên sản phẩm</th><th>TỔNG SỐ LƯỢNG</th></tr></thead><tbody></tbody></table></section></main>
+<footer class="safe-bottom"><small>Thêm vào MH chính: Share → Add to Home Screen (iOS). Dữ liệu lưu cục bộ.</small></footer>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js'));}</script>
+<script src="app.js"></script></body></html>
