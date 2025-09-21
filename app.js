@@ -1,21 +1,78 @@
 const $=id=>document.getElementById(id);
-const state={master:JSON.parse(localStorage.getItem('inv_master')||'[]'),entries:JSON.parse(localStorage.getItem('inv_entries')||'[]'),scanning:false,stream:null,detector:null};
-renderEntries();renderSummary();updateProductInfo('');
-$('masterFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const t=await f.text();const lines=t.split(/\r?\n/).filter(x=>x.trim().length);const header=lines.shift().split(',').map(h=>h.trim().toLowerCase());const iName=header.findIndex(h=>['tên sản phẩm','ten san pham','name','ten'].includes(h));const iBarcode=header.findIndex(h=>['mã vạch','ma vach','barcode','ean','upc'].includes(h));const iSku=header.findIndex(h=>['mã hàng','ma hang','sku','code'].includes(h));const arr=[];for(const line of lines){const parts=parseCSV(line);const name=parts[iName]||'';const barcode=(parts[iBarcode]||'').trim();const sku=(iSku>=0?parts[iSku]:'');if(barcode)arr.push({barcode,name,sku});}state.master=arr;localStorage.setItem('inv_master',JSON.stringify(arr));alert('Đã nạp danh mục: '+arr.length+' sản phẩm');});
-$('downloadMaster').addEventListener('click',()=>{const s='Tên sản phẩm,Mã vạch,Mã hàng\nSỮA NUTI DÂU,20102010283,SUA_NUTI_DAU\nCoca Cola 1.5L,8935049501381,COCA_15L\nPepsi 1.5L,8934588013065,PEPSI_15L\n7UP 1.5L,8934588023064,7UP_15L\n';downloadText('master_sample.csv',s);});
-$('scanBtn').addEventListener('click',startScan);$('stopScan').addEventListener('click',stopScan);
-$('barcodeInput').addEventListener('input',e=>updateProductInfo(e.target.value.trim()));
-$('addBtn').addEventListener('click',addEntry);
-$('exportBtn').addEventListener('click',exportCSV);
-$('clearBtn').addEventListener('click',()=>{if(confirm('Xóa dữ liệu kiểm kê (giữ danh mục)?')){state.entries=[];localStorage.removeItem('inv_entries');renderEntries();renderSummary();}});
-function normalize(s){return String(s||'').replace(/\s+/g,'').trim();}
-function findMatches(code){code=normalize(code);if(!code)return[];if(code.length<=6){const last6=code.slice(-6);return state.master.filter(p=>normalize(p.barcode).slice(-6)===last6);}const exact=state.master.filter(p=>normalize(p.barcode)===code);if(exact.length)return exact;return state.master.filter(p=>normalize(p.barcode).endsWith(code));}
-function updateProductInfo(code){const box=$('ambiguous');box.classList.add('hidden');box.innerHTML='';const matches=findMatches(code);if(matches.length===1){const p=matches[0];$('productName').textContent=p.name||'—';$('sku').textContent=p.sku||'—';}else if(matches.length>1){$('productName').textContent='Nhiều kết quả';$('sku').textContent='—';box.classList.remove('hidden');box.innerHTML='<b>Chọn sản phẩm khớp 6 số cuối:</b> '+matches.map((p,i)=>`<button class="btn" data-i="${i}" style="margin:6px 6px 0 0">${escapeHtml(p.name)} (${p.barcode})</button>`).join('');box.querySelectorAll('button[data-i]').forEach(btn=>btn.onclick=()=>{const p=matches[parseInt(btn.dataset.i,10)];$('barcodeInput').value=p.barcode;$('productName').textContent=p.name||'—';$('sku').textContent=p.sku||'—';box.classList.add('hidden');box.innerHTML='';});}else{$('productName').textContent='—';$('sku').textContent='—';}}
-function addEntry(){const barcode=$('barcodeInput').value.trim();if(!barcode)return alert('Nhập hoặc quét mã vạch');const m=findMatches(barcode);if(m.length===0)return alert('Không tìm thấy sản phẩm trong danh mục');if(m.length>1)return alert('Có nhiều sản phẩm trùng 6 số cuối. Hãy chọn trong khung vàng trước khi thêm.');const p=m[0];const name=p?.name||'';const ts=new Date().toISOString();const q1=toInt($('qtyFridge').value),q2=toInt($('qtyShelf').value),q3=toInt($('qtyStock').value);const sum=q1+q2+q3;state.entries.push({ts,barcode:p.barcode,name,qtyFridge:q1,qtyShelf:q2,qtyStock:q3,sum});localStorage.setItem('inv_entries',JSON.stringify(state.entries));renderEntries();renderSummary();$('qtyFridge').value=0;$('qtyShelf').value=0;$('qtyStock').value=0;$('barcodeInput').select();}
-function exportCSV(){const head='Thời gian,Mã vạch,Tên sản phẩm,Tủ lạnh,Trên kệ,Trong kho,TỔNG\n';const lines=state.entries.map(r=>[r.ts,r.barcode,escCSV(r.name),r.qtyFridge,r.qtyShelf,r.qtyStock,r.sum].join(','));downloadText('kiemke_export.csv',head+lines.join('\n'));}
-function renderEntries(){const tb=$('resultTable').querySelector('tbody');tb.innerHTML='';state.entries.slice().reverse().forEach((r,idx)=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${fmt(r.ts)}</td><td>${r.barcode}</td><td>${escapeHtml(r.name)}</td><td>${r.qtyFridge}</td><td>${r.qtyShelf}</td><td>${r.qtyStock}</td><td><b>${r.sum}</b></td><td><button class="btn danger" data-i="${idx}">Xóa</button></td>`;tb.appendChild(tr);});tb.querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>{const rev=parseInt(b.dataset.i,10);const real=state.entries.length-1-rev;state.entries.splice(real,1);localStorage.setItem('inv_entries',JSON.stringify(state.entries));renderEntries();renderSummary();});}
-function renderSummary(){const sums={};for(const r of state.entries){const key=r.name||r.barcode;sums[key]=(sums[key]||0)+(r.sum||0);}const tb=$('sumTable').querySelector('tbody');tb.innerHTML='';Object.entries(sums).sort((a,b)=>b[1]-a[1]).forEach(([name,total])=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(name)}</td><td><b>${total}</b></td>`;tb.appendChild(tr);});}
-function toInt(v){v=parseInt(v,10);return Number.isFinite(v)&&v>0?v:0;}function escCSV(s){if(s==null)return'';s=String(s);if(/[\",\\n]/.test(s))return'\"'+s.replace(/\"/g,'\"\"')+'\"';return s;}function fmt(iso){const d=new Date(iso);return d.toLocaleString();}function downloadText(n,t){const blob=new Blob([t],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=n;a.click();URL.revokeObjectURL(a.href);}function parseCSV(line){const out=[];let cur='',inQ=false;for(let i=0;i<line.length;i++){const ch=line[i];if(inQ){if(ch=='\"'&&line[i+1]=='\"'){cur+='\"';i++;}else if(ch=='\"'){inQ=false;}else cur+=ch;}else{if(ch==','){out.push(cur);cur='';}else if(ch=='\"'){inQ=true;}else cur+=ch;}}out.push(cur);return out;}function escapeHtml(s){return(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-async function startScan(){if(state.scanning)return;if(!('BarcodeDetector'in window)){alert('iOS có thể không hỗ trợ quét trực tiếp. Hãy nhập 6 số cuối hoặc dùng đầu đọc Bluetooth.');return;}try{state.detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_e','qr_code','code_128','code_39']});}catch(e){alert('Không khởi tạo được BarcodeDetector: '+e);return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}catch(e){alert('Không truy cập được camera: '+e);return;}state.scanning=true;state.stream=stream;const v=document.getElementById('video');v.srcObject=stream;await v.play();document.getElementById('videoWrap').classList.remove('hidden');requestAnimationFrame(scanLoop);}
-async function scanLoop(){if(!state.scanning)return;try{const v=document.getElementById('video');const bmp=await createImageBitmap(v);const codes=await state.detector.detect(bmp);bmp.close();if(codes&&codes.length){const code=codes[0].rawValue;document.getElementById('barcodeInput').value=code;updateProductInfo(code);stopScan();document.getElementById('qtyFridge').focus();return;}}catch(e){}requestAnimationFrame(scanLoop);}
-function stopScan(){state.scanning=false;document.getElementById('videoWrap').classList.add('hidden');if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null;}}
+let state={entries:[],master:[]};
+
+function escCSV(v){return '"' + String(v||'').replace(/"/g,'""') + '"';}
+function escapeHtml(t){return String(t||'').replace(/[&<>]/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[s]));}
+
+$('masterFile').addEventListener('change',e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=ev=>{
+  state.master=ev.target.result.split(/\r?\n/).slice(1).map(l=>l.split(','));
+ };
+ r.readAsText(f,'utf-8');
+});
+
+$('downloadMaster').onclick=()=>{
+ const csv='Tên sản phẩm,Mã vạch\nSỮA NUTI DÂU,20102010283';
+ const blob=new Blob([csv],{type:'text/csv'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mau_danh_muc.csv';a.click();
+};
+
+$('clearBtn').onclick=()=>{if(confirm('Xóa toàn bộ dữ liệu?')){state.entries=[];render();}};
+
+$('addBtn').onclick=()=>{
+ const code=$('barcodeInput').value.trim();if(!code)return;
+ const name=$('productName').textContent||'';
+ const qtyF=+$('qtyFridge').value||0,qtyS=+$('qtyShelf').value||0,qtyK=+$('qtyStock').value||0;
+ const total=qtyF+qtyS+qtyK;
+ state.entries.push({time:new Date().toLocaleString(),barcode:code,name,fridge:qtyF,shelf:qtyS,stock:qtyK,sum:total});
+ render();
+};
+
+function render(){
+ renderTable();renderSummary();
+}
+
+function renderTable(){
+ const tb=$('resultTable').querySelector('tbody');tb.innerHTML='';
+ state.entries.forEach((r,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${r.time}</td><td>${r.barcode}</td><td>${escapeHtml(r.name)}</td>
+    <td>${r.fridge}</td><td>${r.shelf}</td><td>${r.stock}</td><td>${r.sum}</td>
+    <td><button onclick="delRow(${i})">X</button></td>`;
+  tb.appendChild(tr);
+ });
+}
+
+function renderSummary(){
+ const sums={};
+ for(const r of state.entries){
+  const code=r.barcode;
+  if(!sums[code])sums[code]={name:r.name||'',barcode:code,total:0};
+  sums[code].total+=r.sum||0;
+ }
+ const tb=$('sumTable').querySelector('tbody');tb.innerHTML='';
+ Object.values(sums).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name)).forEach(row=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${escapeHtml(row.name)}</td><td>${row.barcode}</td><td><b>${row.total}</b></td>`;
+  tb.appendChild(tr);
+ });
+}
+
+function exportCSV(){
+ const sums={};
+ for(const r of state.entries){
+  const code=r.barcode;
+  if(!sums[code])sums[code]={name:r.name||'',barcode:code,total:0};
+  sums[code].total+=r.sum||0;
+ }
+ const head='Tên sản phẩm,Mã vạch,TỔNG SỐ LƯỢNG\n';
+ const lines=Object.values(sums).map(row=>[escCSV(row.name),row.barcode,row.total].join(','));
+ downloadText('tonghop_kiemke.csv',head+lines.join('\n'));
+}
+
+$('exportBtn').onclick=exportCSV;
+function delRow(i){state.entries.splice(i,1);render();}
+
+function downloadText(fn,txt){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download=fn;a.click();}
